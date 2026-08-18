@@ -1,4 +1,5 @@
 streamlit
+torch
 gradio_client
 huggingface_hub
 kokoro

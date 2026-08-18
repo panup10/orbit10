@@ -2,6 +2,16 @@ import os
 import tempfile
 import textwrap
 
+import torch
+
+# Streamlit's file watcher inspects every loaded module's __path__ on each rerun. torch
+# (pulled in transitively by kokoro) exposes a C++-backed __path__ on torch.classes that
+# isn't a normal Python path list, which crashes that inspection with
+# "RuntimeError: Tried to instantiate class '__path__._path'" (surfaces as a cascading
+# ModuleNotFoundError on Streamlit Cloud). This must run before Streamlit's watcher scans
+# torch, so it's done immediately after importing torch, before any other imports.
+torch.classes.__path__ = []
+
 import numpy as np
 import soundfile as sf
 import streamlit as st
