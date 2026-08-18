@@ -1,0 +1,7 @@
+streamlit
+gradio_client
+huggingface_hub
+kokoro
+soundfile
+moviepy
+numpy
