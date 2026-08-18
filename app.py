@@ -2,19 +2,32 @@ import os
 import tempfile
 import textwrap
 
-import torch
+import streamlit as st
+import streamlit.watcher.local_sources_watcher as _lsw
 
-# Streamlit's file watcher inspects every loaded module's __path__ on each rerun. torch
-# (pulled in transitively by kokoro) exposes a C++-backed __path__ on torch.classes that
-# isn't a normal Python path list, which crashes that inspection with
-# "RuntimeError: Tried to instantiate class '__path__._path'" (surfaces as a cascading
-# ModuleNotFoundError on Streamlit Cloud). This must run before Streamlit's watcher scans
-# torch, so it's done immediately after importing torch, before any other imports.
-torch.classes.__path__ = []
+# Streamlit's file watcher inspects every newly-imported module (get_module_paths) to
+# decide what to watch. Some of torch/transformers' lazy-loading modules raise real
+# exceptions (e.g. a stray "from torchvision.io import read_image" deep in a lazy
+# __getattr__, when torchvision isn't installed) when merely probed with hasattr(module,
+# "__path__") — Streamlit's currently-deployed version doesn't guard against that and lets
+# it crash the whole app instead of just skipping that module. Wrapping the function so any
+# exception during inspection is treated as "no paths" instead of a crash. Must happen
+# before importing torch/kokoro/moviepy, which is what triggers the scan.
+_original_get_module_paths = _lsw.get_module_paths
+
+
+def _safe_get_module_paths(module):
+    try:
+        return _original_get_module_paths(module)
+    except Exception:
+        return set()
+
+
+_lsw.get_module_paths = _safe_get_module_paths
 
 import numpy as np
 import soundfile as sf
-import streamlit as st
+import torch
 from gradio_client import Client, handle_file
 from huggingface_hub import InferenceClient
 from kokoro import KPipeline
